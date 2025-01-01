@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import TaskList from '../components/TaskList'
 import TaskDetail from '../components/TaskDetail'
 import { tasksService } from '../lib/services/tasks'
+import { dateUtils } from '../lib/utils/dateUtils'
 import type { Database } from '../lib/database.types'
 import { TaskStatus } from '../types/task'
 import CreateTaskForm from '../components/CreateTaskForm'
@@ -14,17 +15,18 @@ export default function Tasks() {
   const [taskHistory, setTaskHistory] = useState<TaskHistory[]>([])
   const [todayStatuses, setTodayStatuses] = useState<Record<string, TaskStatus | null>>({})
   const [showCreateForm, setShowCreateForm] = useState(false)
+  const [selectedDate, setSelectedDate] = useState(dateUtils.getTodayDate())
 
   useEffect(() => {
     loadTodayStatuses()
-  }, [])
+  }, [selectedDate])
 
   async function loadTodayStatuses() {
     try {
-      const statuses = await tasksService.getTodayStatuses()
+      const statuses = await tasksService.getTodayStatuses(selectedDate)
       setTodayStatuses(statuses)
     } catch (error) {
-      console.error('Failed to load today\'s statuses:', error)
+      console.error('Failed to load statuses:', error)
     }
   }
 
@@ -42,16 +44,18 @@ export default function Tasks() {
     if (!selectedTask) return
 
     try {
-      const updatedHistory = await tasksService.updateTaskStatus(selectedTask.id, status)
+      const updatedHistory = await tasksService.updateTaskStatus(
+        selectedTask.id, 
+        status,
+        selectedDate
+      )
       
       setTaskHistory(prev => {
-        const filtered = prev.filter(h => 
-          h.date.split('T')[0] !== new Date().toISOString().split('T')[0]
-        )
+        const filtered = prev.filter(h => h.date !== selectedDate)
         return [updatedHistory, ...filtered]
       })
 
-      // Update today's status in the list
+      // Update status in the list
       setTodayStatuses(prev => ({
         ...prev,
         [selectedTask.id]: status
@@ -73,6 +77,12 @@ export default function Tasks() {
 
   return (
     <div className="space-y-6">
+      <input
+        type="date"
+        value={selectedDate}
+        onChange={(e) => setSelectedDate(e.target.value)}
+        className="border rounded px-2 py-1"
+      />
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-900">Tasks</h1>
         <button

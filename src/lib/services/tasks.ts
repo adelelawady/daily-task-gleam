@@ -1,6 +1,7 @@
 import { supabase } from '../supabase'
 import type { Database } from '../database.types'
 import { TaskStatus } from '../types/task'
+import { dateUtils } from '../utils/dateUtils'
 
 type Task = Database['public']['Tables']['tasks']['Row']
 type TaskInsert = Database['public']['Tables']['tasks']['Insert']
@@ -50,16 +51,71 @@ export const tasksService = {
     return data
   },
 
-  async updateTask(id: string, updates: TaskUpdate) {
-    const { data, error } = await supabase
+  async updateTask(id: string, updates: TaskUpdate, date?: string) {
+    const user = await supabase.auth.getUser()
+    if (!user.data.user) throw new Error('Not authenticated')
+
+    // Use provided date or default to today
+    const targetDate = date || new Date().toISOString().split('T')[0]
+
+    // Start a transaction using supabase
+    const { data: task, error: taskError } = await supabase
       .from('tasks')
       .update(updates)
       .eq('id', id)
       .select()
       .single()
     
-    if (error) throw error
-    return data
+    if (taskError) throw taskError
+
+    try {
+      // First check if there's already a history record for this date
+      const { data: existingHistory, error: checkError } = await supabase
+        .from('task_history')
+        .select('*')
+        .eq('task_id', id)
+        .eq('date', targetDate)
+        .single()
+
+      if (checkError && checkError.code !== 'PGRST116') {
+        throw checkError
+      }
+
+      if (existingHistory) {
+        // Update existing history record
+        const { data: updatedHistory, error: updateError } = await supabase
+          .from('task_history')
+          .update({ 
+            status: updates.status,
+            created_at: new Date().toISOString()
+          })
+          .eq('id', existingHistory.id)
+          .select()
+          .single()
+
+        if (updateError) throw updateError
+        return { task, history: updatedHistory }
+      } else {
+        // Create new history record for this date
+        const { data: newHistory, error: insertError } = await supabase
+          .from('task_history')
+          .insert({
+            task_id: id,
+            user_id: user.data.user.id,
+            status: updates.status,
+            date: targetDate,
+            created_at: new Date().toISOString()
+          })
+          .select()
+          .single()
+
+        if (insertError) throw insertError
+        return { task, history: newHistory }
+      }
+    } catch (error) {
+      console.error('Error updating task history:', error)
+      throw error
+    }
   },
 
   async deleteTask(id: string) {
@@ -126,7 +182,7 @@ export const tasksService = {
   },
 
   async getTodayStatus(taskId: string) {
-    const today = new Date().toISOString().split('T')[0]
+    const today = dateUtils.getTodayDate()
     
     const { data, error } = await supabase
       .from('task_history')
@@ -139,11 +195,11 @@ export const tasksService = {
     return data
   },
 
-  async updateTaskStatus(taskId: string, status: TaskStatus) {
+  async updateTaskStatus(taskId: string, status: TaskStatus, date?: string) {
     const user = await supabase.auth.getUser()
     if (!user.data.user) throw new Error('Not authenticated')
 
-    const today = new Date().toISOString().split('T')[0]
+    const targetDate = date || dateUtils.getTodayDate()
 
     try {
       // First try to update if exists
@@ -154,7 +210,7 @@ export const tasksService = {
           created_at: new Date().toISOString()
         })
         .eq('task_id', taskId)
-        .eq('date', today)
+        .eq('date', targetDate)
         .select()
         .single()
 
@@ -169,7 +225,8 @@ export const tasksService = {
           task_id: taskId,
           user_id: user.data.user.id,
           status,
-          date: today
+          date: targetDate,
+          created_at: new Date().toISOString()
         })
         .select()
         .single()
@@ -208,27 +265,54 @@ export const tasksService = {
     return data
   },
 
-  async getTodayStatuses() {
-    const today = new Date().toISOString().split('T')[0]
+  async getTodayStatuses(date?: string) {
+    const targetDate = date || dateUtils.getTodayDate()
     
     // Get all tasks first
     const tasks = await this.getTasks()
     
-    // Get today's statuses for all tasks
+    // Get statuses for the target date
     const { data, error } = await supabase
       .from('task_history')
       .select('*')
-      .eq('date', today)
+      .eq('date', targetDate)
     
     if (error) throw error
 
     // Create a map of task_id to status
     const statusMap: Record<string, TaskStatus | null> = {}
     tasks.forEach(task => {
-      const todayStatus = data?.find(h => h.task_id === task.id)
-      statusMap[task.id] = todayStatus?.status || null
+      const dateStatus = data?.find(h => h.task_id === task.id)
+      statusMap[task.id] = dateStatus?.status || null
     })
 
     return statusMap
+  },
+
+  // Add a new method to reset task history for a new day
+  async resetTaskHistory(taskId: string, date: string) {
+    const user = await supabase.auth.getUser()
+    if (!user.data.user) throw new Error('Not authenticated')
+
+    try {
+      // Create a new history record with default status
+      const { data: newHistory, error: insertError } = await supabase
+        .from('task_history')
+        .insert({
+          task_id: taskId,
+          user_id: user.data.user.id,
+          status: TaskStatus.PENDING, // Default status for new day
+          date: date,
+          created_at: new Date().toISOString()
+        })
+        .select()
+        .single()
+
+      if (insertError) throw insertError
+      return newHistory
+    } catch (error) {
+      console.error('Error resetting task history:', error)
+      throw error
+    }
   }
 } 
