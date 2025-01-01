@@ -1,4 +1,5 @@
-export type TaskStatus = 'Success' | 'High' | 'Medium' | 'Low' | 'Failed';
+export const STATUS_OPTIONS = ['Success', 'High', 'Medium', 'Low', 'Failed'] as const
+export type TaskStatus = typeof STATUS_OPTIONS[number]
 
 export interface Task {
   id: string;

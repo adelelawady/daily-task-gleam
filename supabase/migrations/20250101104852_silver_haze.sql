@@ -42,6 +42,45 @@ CREATE TABLE IF NOT EXISTS task_history (
   UNIQUE(task_id, date)
 );
 
+-- Create an enum for task status
+CREATE TYPE task_status AS ENUM ('Success', 'High', 'Medium', 'Low', 'Failed');
+
+-- Modify the task_history table to use the enum
+ALTER TABLE task_history 
+  ALTER COLUMN status TYPE task_status 
+  USING status::task_status;
+
+-- Add a constraint to ensure only one status per task per day
+ALTER TABLE task_history
+  ADD CONSTRAINT unique_task_status_per_day 
+  UNIQUE (task_id, date);
+
+-- Add a trigger to update existing status if one exists for the day
+CREATE OR REPLACE FUNCTION update_task_status()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- If a status already exists for this task on this date, update it
+  UPDATE task_history
+  SET status = NEW.status,
+      created_at = NOW()
+  WHERE task_id = NEW.task_id 
+    AND date = NEW.date;
+    
+  -- If no update was made (no existing record), insert the new one
+  IF NOT FOUND THEN
+    RETURN NEW;
+  END IF;
+  
+  -- If we updated an existing record, skip the insert
+  RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER task_status_upsert
+  BEFORE INSERT ON task_history
+  FOR EACH ROW
+  EXECUTE FUNCTION update_task_status();
+
 -- Enable RLS
 ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE task_history ENABLE ROW LEVEL SECURITY;
