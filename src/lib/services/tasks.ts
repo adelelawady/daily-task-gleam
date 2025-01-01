@@ -34,9 +34,15 @@ export const tasksService = {
   },
 
   async createTask(task: TaskInsert) {
+    const user = await supabase.auth.getUser()
+    if (!user.data.user) throw new Error('Not authenticated')
+
     const { data, error } = await supabase
       .from('tasks')
-      .insert(task)
+      .insert({
+        ...task,
+        user_id: user.data.user.id
+      })
       .select()
       .single()
     
@@ -200,5 +206,29 @@ export const tasksService = {
     
     if (error) throw error
     return data
+  },
+
+  async getTodayStatuses() {
+    const today = new Date().toISOString().split('T')[0]
+    
+    // Get all tasks first
+    const tasks = await this.getTasks()
+    
+    // Get today's statuses for all tasks
+    const { data, error } = await supabase
+      .from('task_history')
+      .select('*')
+      .eq('date', today)
+    
+    if (error) throw error
+
+    // Create a map of task_id to status
+    const statusMap: Record<string, TaskStatus | null> = {}
+    tasks.forEach(task => {
+      const todayStatus = data?.find(h => h.task_id === task.id)
+      statusMap[task.id] = todayStatus?.status || null
+    })
+
+    return statusMap
   }
 } 

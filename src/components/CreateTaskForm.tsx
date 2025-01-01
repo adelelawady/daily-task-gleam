@@ -66,7 +66,7 @@ export default function CreateTaskForm({ onSubmit, onCancel }: CreateTaskFormPro
         <button
           type="submit"
           disabled={isSubmitting || !title.trim()}
-          className="px-4 py-2 text-sm font-medium text-white bg-primary hover:bg-primary-dark rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
+          className="inline-flex items-center px-4 py-2 text-sm font-semibold text-black bg-primary border border-transparent rounded-md shadow-sm hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isSubmitting ? 'Creating...' : 'Create Task'}
         </button>
