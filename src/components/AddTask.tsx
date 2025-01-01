@@ -30,6 +30,10 @@ export const AddTask = ({ onAdd }: AddTaskProps) => {
     setTitle("");
   };
 
+  const handlePriorityChange = (value: string) => {
+    setPriority(value as "high" | "medium" | "low");
+  };
+
   return (
     <form onSubmit={handleSubmit} className="flex gap-2 mb-6">
       <Input
@@ -49,7 +53,7 @@ export const AddTask = ({ onAdd }: AddTaskProps) => {
           <SelectItem value="Other">Other</SelectItem>
         </SelectContent>
       </Select>
-      <Select value={priority} onValueChange={setPriority}>
+      <Select value={priority} onValueChange={handlePriorityChange}>
         <SelectTrigger className="w-[120px]">
           <SelectValue />
         </SelectTrigger>
