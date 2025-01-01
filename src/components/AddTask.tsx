@@ -23,7 +23,7 @@ export const AddTask = ({ onAdd }: AddTaskProps) => {
   const [category, setCategory] = useState("Work");
   const [priority, setPriority] = useState<"high" | "medium" | "low">("medium");
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!title.trim()) return;
     onAdd({ title, category, priority });
