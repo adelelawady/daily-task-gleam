@@ -1,89 +1,75 @@
 import { useEffect, useState } from 'react'
+import { Task, TaskStatus } from '../types/task'
 import { tasksService } from '../lib/services/tasks'
-import { supabase } from '../lib/supabase'
-import type { Database } from '../lib/database.types'
-import CreateTaskForm from './CreateTaskForm'
-
-type Task = Database['public']['Tables']['tasks']['Row']
 
 interface TaskListProps {
-  onTaskSelect: (task: Task) => void
+  todayStatuses: Record<string, TaskStatus | null>
+  onTaskSelect?: (task: Task) => void
   selectedTaskId?: string
 }
 
-export default function TaskList({ onTaskSelect, selectedTaskId }: TaskListProps) {
+export default function TaskList({ todayStatuses, onTaskSelect, selectedTaskId }: TaskListProps) {
   const [tasks, setTasks] = useState<Task[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<Error | null>(null)
-  const [showCreateForm, setShowCreateForm] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
+    const loadTasks = async () => {
+      try {
+        const data = await tasksService.getTasks()
+        setTasks(data)
+      } catch (error) {
+        console.error('Error loading tasks:', error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
     loadTasks()
   }, [])
 
-  async function loadTasks() {
-    try {
-      const data = await tasksService.getTasks()
-      setTasks(data)
-    } catch (err) {
-      setError(err instanceof Error ? err : new Error('Failed to load tasks'))
-    } finally {
-      setLoading(false)
+  const getStatusColor = (status: TaskStatus | null) => {
+    if (!status) return 'bg-gray-500'
+    
+    const colors: Record<TaskStatus, string> = {
+      Success: 'bg-green-500',
+      High: 'bg-blue-500',
+      Medium: 'bg-yellow-500',
+      Low: 'bg-orange-500',
+      Failed: 'bg-red-500'
     }
+    return colors[status]
   }
 
-  async function handleCreateTask(title: string, description?: string) {
-    try {
-      const user = await supabase.auth.getUser()
-      if (!user.data.user) throw new Error('Not authenticated')
-
-      const newTask = await tasksService.createTask({
-        user_id: user.data.user.id,
-        title,
-        description
-      })
-      setTasks(prev => [newTask, ...prev])
-      setShowCreateForm(false)
-    } catch (err) {
-      setError(err instanceof Error ? err : new Error('Failed to create task'))
-    }
+  if (isLoading) {
+    return <div>Loading tasks...</div>
   }
-
-  if (loading) return <div>Loading...</div>
-  if (error) return <div>Error: {error.message}</div>
 
   return (
     <div className="space-y-4">
-      {!showCreateForm ? (
-        <button
-          onClick={() => setShowCreateForm(true)}
-          className="w-full p-4 text-left text-sm text-gray-500 border-2 border-dashed border-gray-300 rounded-lg hover:border-primary hover:text-primary transition-colors"
+      {tasks.map((task) => (
+        <div 
+          key={task.id} 
+          onClick={() => onTaskSelect?.(task)}
+          className={`flex items-center justify-between p-4 bg-white rounded-lg shadow cursor-pointer hover:shadow-md transition-shadow ${
+            task.id === selectedTaskId ? 'ring-2 ring-primary' : ''
+          }`}
         >
-          + Add new task
-        </button>
-      ) : (
-        <CreateTaskForm 
-          onSubmit={handleCreateTask}
-          onCancel={() => setShowCreateForm(false)}
-        />
-      )}
-
-      <div className="space-y-2">
-        {tasks.map((task) => (
-          <button
-            key={task.id}
-            onClick={() => onTaskSelect(task)}
-            className={`w-full p-4 text-left bg-white rounded-lg shadow hover:shadow-md transition-shadow ${
-              task.id === selectedTaskId ? 'ring-2 ring-primary' : ''
-            }`}
-          >
-            <h3 className="font-medium">{task.title}</h3>
-            {task.description && (
-              <p className="text-sm text-gray-600 mt-1">{task.description}</p>
-            )}
-          </button>
-        ))}
-      </div>
+          <div className="flex items-center space-x-4">
+            <div>
+              <h3 className="font-medium">{task.title}</h3>
+              {task.description && (
+                <p className="text-sm text-gray-500">{task.description}</p>
+              )}
+            </div>
+          </div>
+          
+          {todayStatuses && todayStatuses[task.id] !== undefined && (
+            <div className={`${getStatusColor(todayStatuses[task.id])} text-white px-2.5 py-0.5 rounded-full text-xs font-semibold`}>
+              {todayStatuses[task.id] || 'No Status'}
+            </div>
+          )}
+        </div>
+      ))}
     </div>
   )
 }

@@ -1,9 +1,33 @@
 import React from 'react';
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, TooltipProps } from 'recharts';
 import { MonthlyStats } from '../../utils/statistics';
 
 interface MonthlyCompletionChartProps {
   data: MonthlyStats[];
+}
+
+function CustomMonthlyTooltip({ active, payload, label }: TooltipProps<any, any>) {
+  if (!active || !payload || !payload.length) return null
+
+  const monthData = payload[0].payload
+
+  return (
+    <div className="p-2 bg-white rounded border border-gray-300 text-sm shadow-md">
+      <p className="font-medium">{label}</p>
+      <div className="flex items-center justify-between">
+        <span>Completion:</span>
+        <span>{monthData.completionRate.toFixed(1)}%</span>
+      </div>
+      <div className="flex items-center justify-between">
+        <span>Total tasks:</span>
+        <span>{monthData.totalTasks}</span>
+      </div>
+      <div className="flex items-center justify-between">
+        <span>Successful tasks:</span>
+        <span>{monthData.successfulTasks}</span>
+      </div>
+    </div>
+  )
 }
 
 export default function MonthlyCompletionChart({ data }: MonthlyCompletionChartProps) {
@@ -16,10 +40,7 @@ export default function MonthlyCompletionChart({ data }: MonthlyCompletionChartP
             tickFormatter={(value) => `${value}%`}
             domain={[0, 100]}
           />
-          <Tooltip 
-            formatter={(value: number) => [`${value.toFixed(1)}%`, 'Completion Rate']}
-            contentStyle={{ backgroundColor: 'white', borderRadius: '8px' }}
-          />
+          <Tooltip content={<CustomMonthlyTooltip />} />
           <Area
             type="monotone"
             dataKey="completionRate"
