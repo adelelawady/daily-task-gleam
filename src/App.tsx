@@ -8,8 +8,10 @@ import Tasks from './pages/Tasks'
 import Statistics from './pages/Statistics'
 
 function App() {
+  const basename = import.meta.env.DEV ? '' : '/daily-task-gleams';
+
   return (
-    <Router>
+    <Router basename={basename}>
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<Login />} />
